@@ -1,6 +1,10 @@
-require("dotenv").config();
-const express = require("express");
-const cors = require("cors");
+import dotenv from "dotenv";
+import express from "express";
+import cors from "cors";
+import { db } from "./app/models";
+import { registerViewRoutes } from "./app/routes/view.routes";
+
+dotenv.config();
 
 const app = express();
 
@@ -16,8 +20,6 @@ app.use(express.json());
 // parse requests of content-type - application/x-www-form-urlencoded
 app.use(express.urlencoded({ extended: true }));
 
-const db = require("./app/models");
-
 db.sequelize.sync();
 // // drop the table if it already exists
 // db.sequelize.sync({ force: true }).then(() => {
@@ -29,7 +31,7 @@ app.get("/", (req, res) => {
   res.json({ message: "Welcome to AutonX webserver." });
 });
 
-require("./app/routes/view.routes")(app);
+registerViewRoutes(app);
 
 // set port, listen for requests
 const PORT = process.env.NODE_DOCKER_PORT || 8080;

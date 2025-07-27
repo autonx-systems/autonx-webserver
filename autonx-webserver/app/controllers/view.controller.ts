@@ -1,9 +1,11 @@
-const db = require("../models");
-const View = db.views;
+import { Request, Response } from "express";
+import { db } from "../models";
+
+const View = db.models.View;
 const Op = db.Sequelize.Op;
 
 // Create and Save a new View
-exports.create = (req, res) => {
+const createView = (req: Request, res: Response) => {
   // Validate request
   if (!req.body.title) {
     res.status(400).send({
@@ -32,11 +34,11 @@ exports.create = (req, res) => {
 };
 
 // Retrieve all Views from the database.
-exports.findAll = (req, res) => {
+const findAllViews = (req: Request, res: Response) => {
   const title = req.query.title;
-  var condition = title ? { title: { [Op.like]: `%${title}%` } } : null;
+  const options = title ? { where: { title: { [Op.like]: `%${title}%` } } } : undefined;
 
-  View.findAll({ where: condition })
+  View.findAll(options)
     .then(data => {
       res.send(data);
     })
@@ -49,7 +51,7 @@ exports.findAll = (req, res) => {
 };
 
 // Find a single View with an id
-exports.findOne = (req, res) => {
+const findOneView = (req: Request, res: Response) => {
   const id = req.params.id;
 
   View.findByPk(id)
@@ -64,14 +66,14 @@ exports.findOne = (req, res) => {
 };
 
 // Update a View by the id in the request
-exports.update = (req, res) => {
+const updateView = (req: Request, res: Response) => {
   const id = req.params.id;
 
   View.update(req.body, {
     where: { id: id }
   })
-    .then(num => {
-      if (num == 1) {
+    .then(([num]) => {
+      if (num === 1) {
         res.send({
           message: "View was updated successfully."
         });
@@ -89,7 +91,7 @@ exports.update = (req, res) => {
 };
 
 // Delete a View with the specified id in the request
-exports.delete = (req, res) => {
+const deleteView = (req: Request, res: Response) => {
   const id = req.params.id;
 
   View.destroy({
@@ -114,7 +116,7 @@ exports.delete = (req, res) => {
 };
 
 // Delete all Views from the database.
-exports.deleteAll = (req, res) => {
+const deleteAllViews = (req: Request, res: Response) => {
   View.destroy({
     where: {},
     truncate: false
@@ -129,3 +131,12 @@ exports.deleteAll = (req, res) => {
       });
     });
 };
+
+export const viewController = {
+  create: createView,
+  findAll: findAllViews,
+  findOne: findOneView,
+  update: updateView,
+  delete: deleteView,
+  deleteAll: deleteAllViews
+}
