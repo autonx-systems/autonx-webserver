@@ -1,6 +1,6 @@
-FROM node:14
+FROM node:22.17.1
 
-WORKDIR /bezkoder-app
+WORKDIR /autonx-webserver
 COPY package.json .
 RUN npm install
 COPY . .

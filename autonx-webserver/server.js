@@ -26,10 +26,10 @@ db.sequelize.sync();
 
 // simple route
 app.get("/", (req, res) => {
-  res.json({ message: "Welcome to bezkoder application." });
+  res.json({ message: "Welcome to AutonX webserver." });
 });
 
-require("./app/routes/turorial.routes")(app);
+require("./app/routes/view.routes")(app);
 
 // set port, listen for requests
 const PORT = process.env.NODE_DOCKER_PORT || 8080;

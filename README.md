@@ -1,4 +1,12 @@
-# Docker Compose Nodejs and MySQL example
+# AutonX Webserver
+
+## Next Steps
+- Locally run server for the first time
+- Add TS
+- Extend model for widgets
+- Consume views and models in UI
+- Support video stream with HLS + RTMP for H264
+
 
 ## Run the System
 We can easily run the whole with only a single command:
