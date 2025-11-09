@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   mysqldb:
-    image: mysql:5.7
+    image: mysql:8.4.7
     restart: unless-stopped
     env_file: ./.env
     environment:
@@ -12,6 +10,8 @@ services:
       - $MYSQLDB_LOCAL_PORT:$MYSQLDB_DOCKER_PORT
     volumes:
       - db:/var/lib/mysql
+    networks:
+      - autonx-backend_autonx-network
   app:
     depends_on:
       - mysqldb
@@ -28,6 +28,12 @@ services:
       - DB_PORT=$MYSQLDB_DOCKER_PORT
     stdin_open: true
     tty: true
+    networks:
+      - autonx-backend_autonx-network
 
 volumes: 
   db:
+
+networks:
+  autonx-backend_autonx-network:
+    external: true
