@@ -1,48 +1,6 @@
-# AutonX Webserver
-
-## Next Steps
-- Locally run server for the first time
-- Extend model for widgets
-- Consume views and models in UI
-- Support video stream with HLS + RTMP for H264
-
-
-## Run the System
-We can easily run the whole with only a single command:
-```bash
-docker compose up
-```
-
-Docker will pull the MySQL and Node.js images (if our machine does not have it before).
-
-The services can be run on the background with command:
-```bash
-docker compose up -d
-```
-
-## Stop the System
-Stopping all the running containers is also simple with a single command:
-```bash
-docker compose down
-```
-
-If you need to stop and remove all containers, networks, and all images used by any service in <em>docker-compose.yml</em> file, use the command:
-```bash
-docker compose down --rmi all
-```
+# Node.js Rest APIs with Express, Sequelize & MySQL example
 
 For more detail, please visit:
-> [Dockerize Node.js Express and MySQL example - Docker Compose](https://www.bezkoder.com/docker-compose-nodejs-mysql/)
-
-Related Posts:
-> [Build Node.js Rest APIs with Express & MySQL](https://www.bezkoder.com/node-js-rest-api-express-mysql/)
-
-> [Upload/store images in MySQL using Node.js, Express & Multer](https://www.bezkoder.com/node-js-upload-image-mysql/)
-
-> [Node.js: Upload CSV file data into Database with Express](https://bezkoder.com/node-js-upload-csv-file-database/)
-
-> [Node.js: Upload Excel file data into Database with Express](https://www.bezkoder.com/node-js-upload-excel-file-database/)
-
 > [Build Node.js Rest APIs with Express, Sequelize & MySQL](https://bezkoder.com/node-js-express-sequelize-mysql/)
 
 > [Server side Pagination in Node.js with Sequelize and MySQL](https://bezkoder.com/node-js-sequelize-pagination-mysql/)
@@ -52,7 +10,25 @@ Related Posts:
 Security:
 > [Node.js Express: JWT example | Token Based Authentication & Authorization](https://bezkoder.com/node-js-jwt-authentication-mysql/)
 
-Associations:
-> [Sequelize Associations: One-to-Many Relationship example](https://bezkoder.com/sequelize-associate-one-to-many/)
+## Project setup
+```
+npm install
+```
 
-> [Sequelize Associations: Many-to-Many Relationship example](https://bezkoder.com/sequelize-associate-many-to-many/)
+### Run
+```
+node server.js
+```
+
+## Troubleshooting
+
+node-gyp issues on MacOS (Sequoia)
+
+1. Reinstall xcode
+
+2. Use python v3.10
+
+```bash
+brew install python@3.10
+export NODE_GYP_FORCE_PYTHON=/opt/homebrew/bin/python3.10
+```
