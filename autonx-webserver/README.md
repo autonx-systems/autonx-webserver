@@ -19,3 +19,16 @@ npm install
 ```
 node server.js
 ```
+
+## Troubleshooting
+
+node-gyp issues on MacOS (Sequoia)
+
+1. Reinstall xcode
+
+2. Use python v3.10
+
+```bash
+brew install python@3.10
+export NODE_GYP_FORCE_PYTHON=/opt/homebrew/bin/python3.10
+```
