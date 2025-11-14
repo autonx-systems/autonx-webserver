@@ -1,4 +1,4 @@
-import Sequelize from "sequelize";
+import Sequelize, { DataTypes } from "sequelize";
 import { dbConfig } from "../config/db.config";
 import { View } from "./view.model"
 
@@ -23,3 +23,22 @@ export const db = {
     View,
   }
 };
+
+View.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    title: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    description: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+  },
+  { sequelize },
+);

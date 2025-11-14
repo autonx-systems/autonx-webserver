@@ -1,28 +1,24 @@
-# Node.js Rest APIs with Express, Sequelize & MySQL example
+# AutonX Webserver
 
-For more detail, please visit:
-> [Build Node.js Rest APIs with Express, Sequelize & MySQL](https://bezkoder.com/node-js-express-sequelize-mysql/)
+## Run
 
-> [Server side Pagination in Node.js with Sequelize and MySQL](https://bezkoder.com/node-js-sequelize-pagination-mysql/)
+The server depends on other microservices to be available. It is recommended to spin up everything at once via the docker compose configuration in the [backend project](https://github.com/autonx-systems/autonx-backend).
 
-> [Deploying/Hosting Node.js app on Heroku with MySQL database](https://bezkoder.com/deploy-node-js-app-heroku-cleardb-mysql/)
+In order to use the types during development, it is recommended to install the npm dependencies locally.
 
-Security:
-> [Node.js Express: JWT example | Token Based Authentication & Authorization](https://bezkoder.com/node-js-jwt-authentication-mysql/)
-
-## Project setup
-```
+```bash
 npm install
 ```
 
-### Run
-```
-node server.js
-```
+## Project setup
+
+The webserver is the backbone for the [web app](https://github.com/autonx-systems/autonx-app). It uses a MySQL database to store views for the widget-based dashboard and runs a Socket.IO server to forward messages coming from the Kafka service.
+
+The CRUD endpoints for view entities are exposed on the endpoint `/api/views`.
 
 ## Troubleshooting
 
-node-gyp issues on MacOS (Sequoia)
+If you're having issues installing node-gyp on MacOS (Sequoia).
 
 1. Reinstall xcode
 
