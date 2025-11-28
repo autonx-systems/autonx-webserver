@@ -10,6 +10,6 @@ export class View extends Model<
 	InferCreationAttributes<View>
 > {
 	declare id: CreationOptional<number>;
-	declare title: string;
+	declare name: string;
 	declare description: string;
 }

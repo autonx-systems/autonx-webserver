@@ -7,7 +7,7 @@ const Op = db.Sequelize.Op;
 // Create and Save a new View
 const createView = (req: Request, res: Response) => {
 	// Validate request
-	if (!req.body.title) {
+	if (!req.body.name) {
 		res.status(400).send({
 			message: "Content can not be empty!",
 		});
@@ -16,7 +16,7 @@ const createView = (req: Request, res: Response) => {
 
 	// Create a View
 	const view = {
-		title: req.body.title,
+		name: req.body.name,
 		description: req.body.description,
 	};
 
@@ -34,9 +34,9 @@ const createView = (req: Request, res: Response) => {
 
 // Retrieve all Views from the database.
 const findAllViews = (req: Request, res: Response) => {
-	const title = req.query.title;
-	const options = title
-		? { where: { title: { [Op.like]: `%${title}%` } } }
+	const name = req.query.name;
+	const options = name
+		? { where: { name: { [Op.like]: `%${name}%` } } }
 		: undefined;
 
 	View.findAll(options)
