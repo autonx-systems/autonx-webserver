@@ -18,6 +18,7 @@ const createView = (req: Request, res: Response) => {
 	const view = {
 		name: req.body.name,
 		description: req.body.description,
+    widgets: req.body.widgets,
 	};
 
 	// Save View in the database
@@ -56,6 +57,12 @@ const findOneView = (req: Request, res: Response) => {
 
 	View.findByPk(id)
 		.then((data) => {
+      if (!data) {
+        res.status(404).send({
+          message: `Cannot find View with id=${id}.`
+        });
+        return;
+      }
 			res.send(data);
 		})
 		.catch((err) => {
@@ -74,16 +81,17 @@ const updateView = (req: Request, res: Response) => {
 	})
 		.then(([num]) => {
 			if (num === 1) {
-				res.send({
-					message: "View was updated successfully.",
-				});
+        return View.findByPk(id).then((data) => {
+          res.send(data);
+        });
 			} else {
-				res.send({
+				res.status(404).send({
 					message: `Cannot update View with id=${id}. Maybe View was not found or req.body is empty!`,
 				});
 			}
 		})
-		.catch((err) => {
+		.catch((error) => {
+      console.error(error)
 			res.status(500).send({
 				message: "Error updating View with id=" + id,
 			});

@@ -11,5 +11,6 @@ export class View extends Model<
 > {
 	declare id: CreationOptional<number>;
 	declare name: string;
-	declare description: string;
+  declare description: string | null;
+  declare widgets: string | null;
 }

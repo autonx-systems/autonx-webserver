@@ -39,6 +39,10 @@ View.init(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    widgets: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
   },
   { sequelize },
 );
