@@ -7,7 +7,7 @@ const Op = db.Sequelize.Op;
 // Create and Save a new View
 const createView = (req: Request, res: Response) => {
 	// Validate request
-	if (!req.body.title) {
+	if (!req.body.name) {
 		res.status(400).send({
 			message: "Content can not be empty!",
 		});
@@ -16,8 +16,9 @@ const createView = (req: Request, res: Response) => {
 
 	// Create a View
 	const view = {
-		title: req.body.title,
+		name: req.body.name,
 		description: req.body.description,
+    widgets: req.body.widgets,
 	};
 
 	// Save View in the database
@@ -34,9 +35,9 @@ const createView = (req: Request, res: Response) => {
 
 // Retrieve all Views from the database.
 const findAllViews = (req: Request, res: Response) => {
-	const title = req.query.title;
-	const options = title
-		? { where: { title: { [Op.like]: `%${title}%` } } }
+	const name = req.query.name;
+	const options = name
+		? { where: { name: { [Op.like]: `%${name}%` } } }
 		: undefined;
 
 	View.findAll(options)
@@ -56,6 +57,12 @@ const findOneView = (req: Request, res: Response) => {
 
 	View.findByPk(id)
 		.then((data) => {
+      if (!data) {
+        res.status(404).send({
+          message: `Cannot find View with id=${id}.`
+        });
+        return;
+      }
 			res.send(data);
 		})
 		.catch((err) => {
@@ -74,16 +81,17 @@ const updateView = (req: Request, res: Response) => {
 	})
 		.then(([num]) => {
 			if (num === 1) {
-				res.send({
-					message: "View was updated successfully.",
-				});
+        return View.findByPk(id).then((data) => {
+          res.send(data);
+        });
 			} else {
-				res.send({
+				res.status(404).send({
 					message: `Cannot update View with id=${id}. Maybe View was not found or req.body is empty!`,
 				});
 			}
 		})
-		.catch((err) => {
+		.catch((error) => {
+      console.error(error)
 			res.status(500).send({
 				message: "Error updating View with id=" + id,
 			});

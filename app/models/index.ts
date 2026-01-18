@@ -31,12 +31,16 @@ View.init(
       autoIncrement: true,
       primaryKey: true,
     },
-    title: {
+    name: {
       type: DataTypes.STRING,
       allowNull: false,
     },
     description: {
       type: DataTypes.STRING,
+      allowNull: true,
+    },
+    widgets: {
+      type: DataTypes.TEXT,
       allowNull: true,
     },
   },
