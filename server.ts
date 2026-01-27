@@ -11,9 +11,18 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
+const corsOriginIp = process.env.CORS_ORIGIN_IP || "localhost";
+const corsOriginHttp = `http://${corsOriginIp}`;
+const corsOriginHttps = `https://${corsOriginIp}`;
+const corsOriginLocalhost = `http://${corsOriginIp}:3000`;
+
 var corsOptions = {
-	origin: ["http://localhost:3000", process.env.CORS_ORIGIN || "http://192.168.1.200:3000"],
+	origin: [corsOriginHttp, corsOriginHttps, corsOriginLocalhost],
 };
+
+if (!corsOriginIp) {
+  corsOptions.origin.push('http://localhost:3000');
+}
 
 app.use(cors(corsOptions));
 app.use(express.json());
@@ -23,10 +32,12 @@ db.sequelize.sync().catch((error) => {
     console.log('Error syncing database:', error);
 });
 
-// drop the table if it already exists
-// db.sequelize.sync({ force: true }).then(() => {
-//   console.log("Drop and re-sync db.");
-// });
+// Drop the table if it already exists
+if (process.env.FORCE_NEW_DB === 'true') {
+  db.sequelize.sync({ force: true }).then(() => {
+    console.log("Drop and re-sync db.");
+  });
+}
 
 app.get("/", (_req, res) => {
 	res.json({ message: "Welcome to AutonX webserver." });
