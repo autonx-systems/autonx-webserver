@@ -20,7 +20,7 @@ var corsOptions = {
 	origin: [corsOriginHttp, corsOriginHttps, corsOriginLocalhost],
 };
 
-if (!corsOriginIp) {
+if (corsOriginIp !== "localhost") {
   corsOptions.origin.push('http://localhost:3000');
 }
 
