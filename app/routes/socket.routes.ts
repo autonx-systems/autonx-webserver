@@ -11,25 +11,68 @@ export const registerSocketRoutes = (
 		},
 	});
 
+	// --- Kafka Config ---
+	const KAFKA_TOPIC = process.env.KAFKA_TOPIC || "incoming";
+	const KAFKA_TOPIC_OUT = process.env.KAFKA_TOPIC_OUT || "data-out";
+	const KAFKA_BROKERS = process.env.KAFKA_BOOTSTRAP_SERVERS || "kafka:9092";
+	const KAFKA_GROUP_ID = process.env.KAFKA_GROUP_ID || "websocket-streamer";
+	const DEACTIVATE_KAFKA = process.env.DEACTIVATE_KAFKA === "true";
+
+	// --- Kafka Producer Setup ---
+	let producer: Kafka.Producer | null = null;
+
+	if (!DEACTIVATE_KAFKA) {
+		producer = new Kafka.Producer({
+			"metadata.broker.list": KAFKA_BROKERS,
+		});
+
+		producer.connect();
+
+		producer
+			.on("ready", () => {
+				console.log(`[Kafka Producer] Ready. Will publish to topic: ${KAFKA_TOPIC_OUT}`);
+			})
+			.on("event.error", (error) => {
+				console.error("[Kafka Producer] Error:", error);
+			});
+	}
+
 	// --- Socket.IO Events ---
 	io.on("connection", (socket) => {
 		console.log(`[Socket.IO] Client connected: ${socket.id}`);
+
+		socket.on("send-message", (data) => {
+			console.log(`[Socket.IO] Received "send-message" from ${socket.id}:`, data);
+
+			if (producer) {
+				try {
+					producer.produce(
+						KAFKA_TOPIC_OUT,
+						null,
+						Buffer.from(JSON.stringify(data)),
+						null,
+						Date.now(),
+					);
+					console.log(`[Kafka Producer] Message sent to "${KAFKA_TOPIC_OUT}"`);
+				} catch (err) {
+					console.error("[Kafka Producer] Failed to send message:", err);
+				}
+			} else {
+				console.warn("[Kafka Producer] Producer not available, message not sent.");
+			}
+		});
+
 		socket.on("disconnect", () => {
 			console.log(`[Socket.IO] Client disconnected: ${socket.id}`);
 		});
 	});
 
-	// --- Kafka Consumer Setup ---
-	const KAFKA_TOPIC = process.env.KAFKA_TOPIC || "incoming";
-	const KAFKA_BROKERS = process.env.KAFKA_BOOTSTRAP_SERVERS || "kafka:9092";
-	const KAFKA_GROUP_ID = process.env.KAFKA_GROUP_ID || "websocket-streamer";
-	const DEACTIVATE_KAFKA = process.env.DEACTIVATE_KAFKA === "true";
-
 	if (DEACTIVATE_KAFKA) {
-		console.log("[Kafka] Kafka consumer is deactivated via environment variable.");
+		console.log("[Kafka] Kafka is deactivated via environment variable.");
 		return;
 	}
 
+	// --- Kafka Consumer Setup ---
 	const consumer = new Kafka.KafkaConsumer(
 		{
 			"group.id": KAFKA_GROUP_ID,
