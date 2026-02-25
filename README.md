@@ -12,7 +12,7 @@ npm install
 
 ## Project setup
 
-The webserver is the backbone for the [web app](https://github.com/autonx-systems/autonx-app). It uses a MySQL database to store views for the widget-based dashboard and runs a Socket.IO server to forward messages coming from the Kafka service.
+The webserver is the backbone for the [web app](https://github.com/autonx-systems/autonx-app). It uses a MySQL database to store views for the widget-based dashboard and runs a Socket.IO server to forward messages coming from the MQTT broker.
 
 The CRUD endpoints for view entities are exposed on the endpoint `/api/views`.
 
