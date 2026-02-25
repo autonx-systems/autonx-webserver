@@ -1,5 +1,5 @@
 import type http from "node:http";
-import Kafka from "node-rdkafka";
+import mqtt from "mqtt";
 import { Server as SocketIOServer } from "socket.io";
 
 export const registerSocketRoutes = (
@@ -11,31 +11,55 @@ export const registerSocketRoutes = (
 		},
 	});
 
-	// --- Kafka Config ---
-	const KAFKA_TOPIC = process.env.KAFKA_TOPIC || "incoming";
-	const KAFKA_TOPIC_OUT = process.env.KAFKA_TOPIC_OUT || "data-out";
-	const KAFKA_BROKERS = process.env.KAFKA_BOOTSTRAP_SERVERS || "kafka:9092";
-	const KAFKA_GROUP_ID = process.env.KAFKA_GROUP_ID || "websocket-streamer";
-	const DEACTIVATE_KAFKA = process.env.DEACTIVATE_KAFKA === "true";
+	// --- MQTT Config ---
+	const MQTT_TOPIC = process.env.MQTT_TOPIC || "incoming";
+	const MQTT_TOPIC_OUT = process.env.MQTT_TOPIC_OUT || "data-out";
+	const MQTT_BROKER = process.env.MQTT_BROKER_URL || `mqtt://${process.env.MQTT_HOST || "mqtt"}:${process.env.MQTT_PORT || "1883"}`;
+	const DEACTIVATE_MQTT = process.env.DEACTIVATE_MQTT === "true";
 
-	// --- Kafka Producer Setup ---
-	let producer: Kafka.Producer | null = null;
-
-	if (!DEACTIVATE_KAFKA) {
-		producer = new Kafka.Producer({
-			"metadata.broker.list": KAFKA_BROKERS,
-		});
-
-		producer.connect();
-
-		producer
-			.on("ready", () => {
-				console.log(`[Kafka Producer] Ready. Will publish to topic: ${KAFKA_TOPIC_OUT}`);
-			})
-			.on("event.error", (error) => {
-				console.error("[Kafka Producer] Error:", error);
-			});
+	if (DEACTIVATE_MQTT) {
+		console.log("[MQTT] MQTT is deactivated via environment variable.");
+		return;
 	}
+
+	// --- MQTT Client Setup ---
+	const client = mqtt.connect(MQTT_BROKER);
+
+	client.on("connect", () => {
+		console.log(`[MQTT] Connected to broker: ${MQTT_BROKER}`);
+
+		// Subscribe to incoming topic
+		client.subscribe(MQTT_TOPIC, (err) => {
+			if (err) {
+				console.error(`[MQTT] Failed to subscribe to "${MQTT_TOPIC}":`, err);
+			} else {
+				console.log(`[MQTT] Subscribed to topic: ${MQTT_TOPIC}`);
+			}
+		});
+	});
+
+	client.on("error", (error) => {
+		console.error("[MQTT] Error:", error);
+	});
+
+	// --- Forward incoming MQTT messages to Socket.IO clients ---
+	client.on("message", (_topic, message) => {
+		try {
+			const rawValue = message.toString();
+			if (!rawValue) return;
+
+			let decodedValue: unknown;
+			try {
+				decodedValue = JSON.parse(rawValue);
+			} catch (err) {
+				console.error("[MQTT] JSON parse error:", err);
+				return;
+			}
+			io.emit("live-sensor-data", decodedValue);
+		} catch (err) {
+			console.error("[MQTT] Error decoding or sending:", err);
+		}
+	});
 
 	// --- Socket.IO Events ---
 	io.on("connection", (socket) => {
@@ -44,21 +68,11 @@ export const registerSocketRoutes = (
 		socket.on("send-message", (data) => {
 			console.log(`[Socket.IO] Received "send-message" from ${socket.id}:`, data);
 
-			if (producer) {
-				try {
-					producer.produce(
-						KAFKA_TOPIC_OUT,
-						null,
-						Buffer.from(JSON.stringify(data)),
-						null,
-						Date.now(),
-					);
-					console.log(`[Kafka Producer] Message sent to "${KAFKA_TOPIC_OUT}"`);
-				} catch (err) {
-					console.error("[Kafka Producer] Failed to send message:", err);
-				}
-			} else {
-				console.warn("[Kafka Producer] Producer not available, message not sent.");
+			try {
+				client.publish(MQTT_TOPIC_OUT, JSON.stringify(data));
+				console.log(`[MQTT] Message published to "${MQTT_TOPIC_OUT}"`);
+			} catch (err) {
+				console.error("[MQTT] Failed to publish message:", err);
 			}
 		});
 
@@ -66,52 +80,4 @@ export const registerSocketRoutes = (
 			console.log(`[Socket.IO] Client disconnected: ${socket.id}`);
 		});
 	});
-
-	if (DEACTIVATE_KAFKA) {
-		console.log("[Kafka] Kafka is deactivated via environment variable.");
-		return;
-	}
-
-	// --- Kafka Consumer Setup ---
-	const consumer = new Kafka.KafkaConsumer(
-		{
-			"group.id": KAFKA_GROUP_ID,
-			"metadata.broker.list": KAFKA_BROKERS,
-			// "reconnect.backoff.ms": DEV ? 10000 : 50,
-			// "retry.backoff.ms": DEV ? 10000 : 100,
-			// "retry.backoff.max.ms": DEV ? 30000 : 1000,
-		},
-		{
-			"auto.offset.reset": "earliest",
-		},
-	);
-
-	consumer.connect();
-
-	consumer
-		.on("ready", () => {
-			console.log(`[Kafka] Connected. Subscribing to topic: ${KAFKA_TOPIC}`);
-			consumer.subscribe([KAFKA_TOPIC]);
-			consumer.consume();
-		})
-		.on("data", (msg) => {
-			try {
-				const rawValue = msg.value?.toString();
-				if (!rawValue) return;
-				let decodedValue: unknown;
-				try {
-					decodedValue = JSON.parse(rawValue);
-				} catch (err) {
-					console.error("[Kafka] JSON parse error:", err);
-					return;
-				}
-				// Sende an alle verbundenen Socket.IO-Clients
-				io.emit("live-sensor-data", decodedValue);
-			} catch (err) {
-				console.error("[Kafka] Error decoding or sending:", err);
-			}
-		})
-		.on("event.error", (error) => {
-			console.error("[Kafka] Error:", error);
-		});
 };
