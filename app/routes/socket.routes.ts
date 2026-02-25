@@ -69,8 +69,14 @@ export const registerSocketRoutes = (
 			console.log(`[Socket.IO] Received "send-message" from ${socket.id}:`, data);
 
 			try {
-				client.publish(MQTT_TOPIC_OUT, JSON.stringify(data));
-				console.log(`[MQTT] Message published to "${MQTT_TOPIC_OUT}"`);
+				const qos = data?.reliable ? 2 : 0;
+				client.publish(MQTT_TOPIC_OUT, JSON.stringify(data), { qos }, (err) => {
+					if (err) {
+						console.error("[MQTT] Failed to publish message:", err);
+					} else {
+						console.log(`[MQTT] Message published to "${MQTT_TOPIC_OUT}" (QoS ${qos})`);
+					}
+				});
 			} catch (err) {
 				console.error("[MQTT] Failed to publish message:", err);
 			}
