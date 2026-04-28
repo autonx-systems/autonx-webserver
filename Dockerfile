@@ -1,11 +1,32 @@
-FROM node:24.11.1
+# ---- Builder Stage ----
+FROM node:24-alpine AS builder
 
 WORKDIR /webserver
-COPY . .
-RUN rm -rf node_modules build dist
 
-RUN apt-get update && apt-get install -y g++ python3 make
+# Install build tools needed by native deps (e.g. bcrypt, better-sqlite3)
+RUN apk add --no-cache python3 make g++
 
-RUN npm install
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+COPY tsconfig.json server.ts ./
+COPY app/ ./app/
 RUN npm run build
-CMD npm start
+
+# ---- Runtime Stage ----
+FROM node:24-alpine
+
+WORKDIR /webserver
+
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+# Copy compiled JS from builder
+COPY --from=builder /webserver/dist ./dist
+
+ENV NODE_DOCKER_HOST=0.0.0.0 \
+    NODE_DOCKER_PORT=8080
+
+EXPOSE 8080
+
+CMD ["node", "dist/server.js"]
