@@ -1,6 +1,7 @@
 import type http from "node:http";
 import mqtt from "mqtt";
 import { Server as SocketIOServer } from "socket.io";
+import { isMockActive, verifyToken } from "../middleware/auth.middleware";
 
 export const registerSocketRoutes = (
 	server: ReturnType<typeof http.createServer>,
@@ -9,6 +10,30 @@ export const registerSocketRoutes = (
 		cors: {
 			origin: "*",
 		},
+	});
+
+	// --- Auth middleware for Socket.IO ---
+	io.use(async (socket, next) => {
+		// Mock mode: trust mockUserId from handshake auth
+		if (isMockActive) {
+			const mockUserId = socket.handshake.auth?.mockUserId;
+			if (!mockUserId) {
+				return next(new Error("Mock auth: mockUserId required"));
+			}
+			(socket.data as { userId: string }).userId = mockUserId;
+			return next();
+		}
+
+		const token = socket.handshake.auth?.token;
+		if (!token) {
+			return next(new Error("Authentication required"));
+		}
+		const userId = await verifyToken(token);
+		if (!userId) {
+			return next(new Error("Invalid or expired token"));
+		}
+		(socket.data as { userId: string }).userId = userId;
+		next();
 	});
 
 	// --- MQTT Config ---

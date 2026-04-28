@@ -1,8 +1,11 @@
 import express from "express";
 import { viewController } from "../controllers/view.controller";
+import { authMiddleware } from "../middleware/auth.middleware";
 
 export const registerViewRoutes = (app: express.Express) => {
 	var router = express.Router();
+
+	router.use(authMiddleware);
 
 	// Create a new View
 	router.post("/", viewController.create);
