@@ -8,6 +8,12 @@ const NODE_ENV = process.env.NODE_ENV || "development";
 // Safety: never allow mock auth in production
 const isMockActive = AUTH_MOCK && NODE_ENV !== "production";
 
+// Hanko sets the JWT audience to the domain the user authenticates against.
+// Locally this is "localhost" (browser → localhost:8000), in cloud it's the project domain.
+// Falls back to the HANKO_API_URL hostname if not explicitly set.
+const HANKO_AUDIENCE = process.env.HANKO_JWT_AUDIENCE
+	|| (HANKO_API_URL ? new URL(HANKO_API_URL).hostname : undefined);
+
 if (isMockActive) {
 	console.warn("[Auth] ⚠️  MOCK AUTH ACTIVE — all requests authenticated via X-Mock-User-Id header. Do NOT use in production.");
 } else if (AUTH_MOCK && NODE_ENV === "production") {
@@ -16,6 +22,8 @@ if (isMockActive) {
 
 if (!isMockActive && !HANKO_API_URL) {
 	console.warn("[Auth] HANKO_API_URL is not set — JWT verification will reject all requests.");
+} else if (!isMockActive) {
+	console.log(`[Auth] JWKS URL: ${HANKO_API_URL}/.well-known/jwks.json, audience: ${HANKO_AUDIENCE}`);
 }
 
 const JWKS = !isMockActive && HANKO_API_URL
@@ -57,11 +65,14 @@ export const authMiddleware = async (
 	}
 
 	try {
-		const { payload } = await jwtVerify(token, JWKS);
+		const { payload } = await jwtVerify(token, JWKS, {
+			audience: HANKO_AUDIENCE,
+		});
 		req.userId = payload.sub;
 		next();
 	} catch (err) {
-		console.error("[Auth] JWT verification failed:", (err as Error).message);
+		const e = err as Error & { cause?: unknown };
+		console.error("[Auth] JWT verification failed:", e.message, e.cause ?? "");
 		res.status(401).json({ message: "Invalid or expired token" });
 	}
 };
@@ -73,7 +84,9 @@ export const authMiddleware = async (
 export const verifyToken = async (token: string): Promise<string | null> => {
 	if (!JWKS) return null;
 	try {
-		const { payload } = await jwtVerify(token, JWKS);
+		const { payload } = await jwtVerify(token, JWKS, {
+			audience: HANKO_AUDIENCE,
+		});
 		return payload.sub ?? null;
 	} catch {
 		return null;
