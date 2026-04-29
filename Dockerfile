@@ -19,10 +19,11 @@ FROM node:24-alpine
 WORKDIR /webserver
 
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci && npm install -g nodemon && npm cache clean --force
 
 # Copy compiled JS from builder
 COPY --from=builder /webserver/dist ./dist
+COPY tsconfig.json ./
 
 ENV NODE_DOCKER_HOST=0.0.0.0 \
     NODE_DOCKER_PORT=8080
