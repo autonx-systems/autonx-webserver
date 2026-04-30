@@ -5,6 +5,7 @@ import express from "express";
 import { db } from "./app/models";
 import { registerSocketRoutes } from "./app/routes/socket.routes";
 import { registerViewRoutes } from "./app/routes/view.routes";
+import { registerDeviceRoutes } from "./app/routes/device.routes";
 
 dotenv.config();
 
@@ -44,6 +45,7 @@ app.get("/", (_req, res) => {
 });
 
 registerViewRoutes(app);
+registerDeviceRoutes(app);
 registerSocketRoutes(server);
 
 // --- Server Start ---
