@@ -1,6 +1,7 @@
 import Sequelize, { DataTypes } from "sequelize";
 import { dbConfig } from "../config/db.config";
 import { View } from "./view.model"
+import { Device, initDevice } from "./device.model"
 
 const sequelize = new Sequelize.Sequelize(dbConfig.DB, dbConfig.USER, dbConfig.PASSWORD, {
   host: dbConfig.HOST,
@@ -21,6 +22,7 @@ export const db = {
   sequelize,
   models: {
     View,
+    Device,
   }
 };
 
@@ -46,3 +48,5 @@ View.init(
   },
   { sequelize },
 );
+
+initDevice(sequelize);
