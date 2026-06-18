@@ -2,8 +2,10 @@ import http from "node:http";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
-import { db } from "./app/models";
+import { bootstrapDb, db } from "./app/models";
+import { registerDeviceRoutes } from "./app/routes/device.routes";
 import { registerSocketRoutes } from "./app/routes/socket.routes";
+import { registerTenantRoutes } from "./app/routes/tenant.routes";
 import { registerViewRoutes } from "./app/routes/view.routes";
 
 dotenv.config();
@@ -28,22 +30,30 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-db.sequelize.sync().catch((error) => {
-    console.log('Error syncing database:', error);
-});
-
-// Drop the table if it already exists
-if (process.env.FORCE_NEW_DB === 'true') {
-  db.sequelize.sync({ force: true }).then(() => {
-    console.log("Drop and re-sync db.");
-  });
+// Optional destructive reset for local dev. `bootstrapDb()` below then
+// recreates everything additively.
+if (process.env.FORCE_NEW_DB === "true") {
+  db.sequelize
+    .sync({ force: true })
+    .then(() => console.log("Drop and re-sync db."))
+    .catch((error) => console.error("Error force-resetting db:", error));
 }
+
+// Idempotent additive bootstrap for the multi-tenant tables (and the
+// legacy `Views` table). This is the single source of truth for
+// schema management — the previous unconditional `db.sequelize.sync()`
+// raced with this and is intentionally removed.
+bootstrapDb().catch((error) => {
+  console.error("Error bootstrapping multi-tenant schema:", error);
+});
 
 app.get("/", (_req, res) => {
 	res.json({ message: "Welcome to AutonX webserver." });
 });
 
 registerViewRoutes(app);
+registerTenantRoutes(app);
+registerDeviceRoutes(app);
 registerSocketRoutes(server);
 
 // --- Server Start ---
