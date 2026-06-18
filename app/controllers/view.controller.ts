@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import type { TenantScopedRequest } from "../middleware/tenant.middleware";
 import { db } from "../models";
 
 const View = db.models.View;
@@ -6,6 +7,8 @@ const Op = db.Sequelize.Op;
 
 // Create and Save a new View
 const createView = (req: Request, res: Response) => {
+	const tenantId = (req as TenantScopedRequest).tenantId as number;
+
 	// Validate request
 	if (!req.body.name) {
 		res.status(400).send({
@@ -14,11 +17,12 @@ const createView = (req: Request, res: Response) => {
 		return;
 	}
 
-	// Create a View
+	// Create a View (tenantId comes from the authenticated context, never the body)
 	const view = {
 		name: req.body.name,
 		description: req.body.description,
     widgets: req.body.widgets,
+		tenantId,
 	};
 
 	// Save View in the database
@@ -35,12 +39,13 @@ const createView = (req: Request, res: Response) => {
 
 // Retrieve all Views from the database.
 const findAllViews = (req: Request, res: Response) => {
+	const tenantId = (req as TenantScopedRequest).tenantId as number;
 	const name = req.query.name;
-	const options = name
-		? { where: { name: { [Op.like]: `%${name}%` } } }
-		: undefined;
+	const where = name
+		? { tenantId, name: { [Op.like]: `%${name}%` } }
+		: { tenantId };
 
-	View.findAll(options)
+	View.findAll({ where })
 		.then((data) => {
 			res.send(data);
 		})
@@ -53,9 +58,10 @@ const findAllViews = (req: Request, res: Response) => {
 
 // Find a single View with an id
 const findOneView = (req: Request, res: Response) => {
+	const tenantId = (req as TenantScopedRequest).tenantId as number;
 	const id = req.params.id;
 
-	View.findByPk(id)
+	View.findOne({ where: { id, tenantId } })
 		.then((data) => {
       if (!data) {
         res.status(404).send({
@@ -74,14 +80,18 @@ const findOneView = (req: Request, res: Response) => {
 
 // Update a View by the id in the request
 const updateView = (req: Request, res: Response) => {
+	const tenantId = (req as TenantScopedRequest).tenantId as number;
 	const id = req.params.id;
 
-	View.update(req.body, {
-		where: { id: id },
+	// Never let the body reassign the row's id or tenant.
+	const { tenantId: _ignoredTenantId, id: _ignoredId, ...payload } = req.body;
+
+	View.update(payload, {
+		where: { id, tenantId },
 	})
 		.then(([num]) => {
 			if (num === 1) {
-        return View.findByPk(id).then((data) => {
+        return View.findOne({ where: { id, tenantId } }).then((data) => {
           res.send(data);
         });
 			} else {
@@ -100,10 +110,11 @@ const updateView = (req: Request, res: Response) => {
 
 // Delete a View with the specified id in the request
 const deleteView = (req: Request, res: Response) => {
+	const tenantId = (req as TenantScopedRequest).tenantId as number;
 	const id = req.params.id;
 
 	View.destroy({
-		where: { id: id },
+		where: { id, tenantId },
 	})
 		.then((num) => {
 			if (num === 1) {
@@ -123,10 +134,12 @@ const deleteView = (req: Request, res: Response) => {
 		});
 };
 
-// Delete all Views from the database.
+// Delete all Views in the caller's tenant.
 const deleteAllViews = (req: Request, res: Response) => {
+	const tenantId = (req as TenantScopedRequest).tenantId as number;
+
 	View.destroy({
-		where: {},
+		where: { tenantId },
 		truncate: false,
 	})
 		.then((nums) => {

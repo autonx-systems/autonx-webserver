@@ -37,6 +37,10 @@ View.init(
       autoIncrement: true,
       primaryKey: true,
     },
+    tenantId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
     name: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -50,7 +54,10 @@ View.init(
       allowNull: true,
     },
   },
-  { sequelize },
+  {
+    sequelize,
+    indexes: [{ fields: ["tenantId"] }],
+  },
 );
 
 Tenant.init(
@@ -114,6 +121,8 @@ UserTenant.belongsTo(Tenant, { foreignKey: "tenantId" });
 Tenant.hasMany(UserTenant, { foreignKey: "tenantId" });
 Device.belongsTo(Tenant, { foreignKey: "tenantId" });
 Tenant.hasMany(Device, { foreignKey: "tenantId" });
+View.belongsTo(Tenant, { foreignKey: "tenantId" });
+Tenant.hasMany(View, { foreignKey: "tenantId" });
 
 /**
  * Idempotent schema bootstrap.
@@ -152,7 +161,97 @@ export const bootstrapDb = async (): Promise<void> => {
   await UserTenant.sync();
   await Device.sync();
   await View.sync();
+  await migrateViewTenant();
   await seedDevTenant();
+};
+
+/**
+ * One-time additive migration: give the `Views` table a `tenantId` column.
+ *
+ * `View.sync()` (no `alter`) creates the column on fresh databases but never
+ * touches a pre-existing `Views` table, so an older deployment keeps a global,
+ * tenant-less table. This adds the column, backfills existing rows to the
+ * tenant named by `VIEW_BACKFILL_TENANT_SLUG`, then best-effort adds the FK +
+ * index and tightens the column to NOT NULL once no NULLs remain.
+ *
+ * Idempotent: a no-op once the column exists. Aborts (throws) if a backfill
+ * slug is configured but missing, rather than silently orphaning view rows.
+ */
+const migrateViewTenant = async (): Promise<void> => {
+  const qi = sequelize.getQueryInterface();
+  let table: Record<string, unknown>;
+  try {
+    table = await qi.describeTable("Views");
+  } catch {
+    // Table doesn't exist yet — View.sync() will have created it with the
+    // tenantId column already; nothing to migrate.
+    return;
+  }
+  if ("tenantId" in table) return; // already migrated
+
+  console.log("[migrate] adding Views.tenantId column");
+  await qi.addColumn("Views", "tenantId", {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  });
+
+  const slug = process.env.VIEW_BACKFILL_TENANT_SLUG;
+  if (slug) {
+    const tenant = await Tenant.findOne({ where: { slug } });
+    if (!tenant) {
+      throw new Error(
+        `[migrate] VIEW_BACKFILL_TENANT_SLUG="${slug}" not found in tenants; ` +
+          "aborting to avoid orphaning view rows.",
+      );
+    }
+    await sequelize.query(
+      "UPDATE `Views` SET `tenantId` = :tid WHERE `tenantId` IS NULL",
+      { replacements: { tid: tenant.id } },
+    );
+    console.log(
+      `[migrate] backfilled Views.tenantId -> tenant ${slug} (id=${tenant.id})`,
+    );
+  }
+
+  try {
+    await qi.addIndex("Views", ["tenantId"]);
+  } catch (err) {
+    console.warn(
+      `[migrate] addIndex Views(tenantId) skipped: ${(err as Error).message}`,
+    );
+  }
+  try {
+    await qi.addConstraint("Views", {
+      type: "foreign key",
+      fields: ["tenantId"],
+      name: "views_tenantId_fkey",
+      references: { table: "tenants", field: "id" },
+      onDelete: "RESTRICT",
+      onUpdate: "CASCADE",
+    });
+  } catch (err) {
+    console.warn(
+      `[migrate] addConstraint Views FK skipped: ${(err as Error).message}`,
+    );
+  }
+
+  const [rows] = await sequelize.query(
+    "SELECT COUNT(*) AS cnt FROM `Views` WHERE `tenantId` IS NULL",
+  );
+  const remaining = Number((rows as Array<{ cnt: number }>)[0]?.cnt ?? 0);
+  if (remaining === 0) {
+    await qi.changeColumn("Views", "tenantId", {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    });
+    console.log("[migrate] Views.tenantId set NOT NULL");
+  } else {
+    console.warn(
+      `[migrate] ${remaining} Views row(s) still have NULL tenantId ` +
+        "(set VIEW_BACKFILL_TENANT_SLUG to a valid slug to fix); leaving column " +
+        "nullable. These rows are invisible to all tenants.",
+    );
+  }
 };
 
 /**
