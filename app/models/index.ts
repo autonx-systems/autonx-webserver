@@ -160,8 +160,13 @@ export const bootstrapDb = async (): Promise<void> => {
   await Tenant.sync();
   await UserTenant.sync();
   await Device.sync();
-  await View.sync();
+  // Must run BEFORE View.sync(): the View model declares an index on
+  // `tenantId`, and sync() would try to create that index on a pre-existing
+  // tenant-less `Views` table before the column exists (which fails). The
+  // migration adds the column (+ index + FK) first; on a fresh DB it no-ops
+  // and View.sync() creates the table complete.
   await migrateViewTenant();
+  await View.sync();
   await seedDevTenant();
 };
 
