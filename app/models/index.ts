@@ -1,6 +1,7 @@
 import Sequelize, { DataTypes } from "sequelize";
 import { dbConfig } from "../config/db.config";
 import { Device } from "./device.model";
+import { MessageSchema } from "./message-schema.model";
 import { Tenant } from "./tenant.model";
 import { UserTenant } from "./user_tenant.model";
 import { View } from "./view.model";
@@ -27,6 +28,7 @@ export const db = {
     Tenant,
     UserTenant,
     Device,
+    MessageSchema,
   }
 };
 
@@ -117,12 +119,34 @@ Device.init(
   },
 );
 
+MessageSchema.init(
+  {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    tenantId: { type: DataTypes.INTEGER, allowNull: false },
+    protocol: {
+      type: DataTypes.ENUM("ros2", "mavlink"),
+      allowNull: false,
+    },
+    name: { type: DataTypes.STRING(128), allowNull: false },
+    definition: { type: DataTypes.TEXT, allowNull: false },
+    createdAt: DataTypes.DATE,
+    updatedAt: DataTypes.DATE,
+  },
+  {
+    sequelize,
+    tableName: "message_schemas",
+    indexes: [{ unique: true, fields: ["tenantId", "protocol", "name"] }],
+  },
+);
+
 UserTenant.belongsTo(Tenant, { foreignKey: "tenantId" });
 Tenant.hasMany(UserTenant, { foreignKey: "tenantId" });
 Device.belongsTo(Tenant, { foreignKey: "tenantId" });
 Tenant.hasMany(Device, { foreignKey: "tenantId" });
 View.belongsTo(Tenant, { foreignKey: "tenantId" });
 Tenant.hasMany(View, { foreignKey: "tenantId" });
+MessageSchema.belongsTo(Tenant, { foreignKey: "tenantId" });
+Tenant.hasMany(MessageSchema, { foreignKey: "tenantId" });
 
 /**
  * Idempotent schema bootstrap.
@@ -167,6 +191,7 @@ export const bootstrapDb = async (): Promise<void> => {
   // and View.sync() creates the table complete.
   await migrateViewTenant();
   await View.sync();
+  await MessageSchema.sync();
   await seedDevTenant();
 };
 

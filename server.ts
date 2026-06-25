@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import express from "express";
 import { bootstrapDb, db } from "./app/models";
 import { registerDeviceRoutes } from "./app/routes/device.routes";
+import { registerMessageSchemaRoutes } from "./app/routes/message-schema.routes";
 import { registerSocketRoutes } from "./app/routes/socket.routes";
 import { registerTenantRoutes } from "./app/routes/tenant.routes";
 import { registerViewRoutes } from "./app/routes/view.routes";
@@ -54,6 +55,7 @@ app.get("/", (_req, res) => {
 registerViewRoutes(app);
 registerTenantRoutes(app);
 registerDeviceRoutes(app);
+registerMessageSchemaRoutes(app);
 registerSocketRoutes(server);
 
 // --- Server Start ---
