@@ -19,7 +19,10 @@ const TOPIC_ALLOWLIST: RegExp[] = [
 	/^tenants\/[a-z0-9-]{3,40}\/devices\/[a-z0-9-]{8,64}\/telemetry(\/.*)?$/,
 	/^tenants\/[a-z0-9-]{3,40}\/devices\/[a-z0-9-]{8,64}\/status(\/.*)?$/,
 	/^tenants\/[a-z0-9-]{3,40}\/devices\/[a-z0-9-]{8,64}\/up$/,
-	/^tenants\/[a-z0-9-]{3,40}\/devices\/[a-z0-9-]{8,64}\/down$/,
+	// Customer-defined downstream topics: `down` itself or any sub-topic
+	// (`down/<topic>`). Tenant + device stay anchored, so it remains
+	// tenant-scoped.
+	/^tenants\/[a-z0-9-]{3,40}\/devices\/[a-z0-9-]{8,64}\/down(\/.*)?$/,
 	/^tenants\/[a-z0-9-]{3,40}\/devices\/[a-z0-9-]{8,64}\/mavlink\/(up|down)$/,
 	/^tenants\/[a-z0-9-]{3,40}\/broadcast(\/.*)?$/,
 	// Frontend bulk subscription to every device in its own tenant.
@@ -218,11 +221,25 @@ export const registerSocketRoutes = (
 				if (!topicAllowed(topic)) {
 					return reject(topic, "topic not in allow-list");
 				}
+				// The endpoint expects a FLAT envelope: `device`, `tenant_slug`
+				// and the message fields (msg/encoding/messageType/...) at the
+				// top level. Derive the device from the already-validated topic
+				// (authoritative) and inject the tenant from the authenticated
+				// session, then spread the frontend-supplied message fields.
+				const deviceMatch = TENANT_DEVICE_TOPIC_RE.exec(topic);
+				const deviceId = deviceMatch?.[2];
+				if (!deviceId) {
+					return reject(topic, "publish topic missing device segment");
+				}
+				const inner =
+					req?.payload && typeof req.payload === "object"
+						? (req.payload as Record<string, unknown>)
+						: {};
 				const qos = req?.reliable ? 2 : 0;
 				const payload = JSON.stringify({
-					topic,
-					tenantSlug: data.tenantSlug,
-					payload: req?.payload,
+					...inner,
+					device: deviceId,
+					tenant_slug: data.tenantSlug,
 					reliable: req?.reliable === true,
 				});
 				client.publish(MQTT_TOPIC_OUT, payload, { qos }, (err) => {

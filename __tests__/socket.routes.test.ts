@@ -31,6 +31,15 @@ describe("topicAllowed", () => {
 			topicAllowed("tenants/alpha-co/devices/drone-001a/telemetry/imu"),
 		).toBe(true);
 		expect(topicAllowed("tenants/alpha-co/devices/drone-001a/up")).toBe(true);
+		expect(topicAllowed("tenants/alpha-co/devices/drone-001a/down")).toBe(
+			true,
+		);
+		expect(
+			topicAllowed("tenants/alpha-co/devices/drone-001a/down/cam_test"),
+		).toBe(true);
+		expect(
+			topicAllowed("tenants/alpha-co/devices/drone-001a/down/foo/bar"),
+		).toBe(true);
 		expect(
 			topicAllowed("tenants/alpha-co/devices/drone-001a/mavlink/up"),
 		).toBe(true);
