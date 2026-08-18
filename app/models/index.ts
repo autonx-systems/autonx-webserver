@@ -52,7 +52,8 @@ View.init(
       allowNull: true,
     },
     widgets: {
-      type: DataTypes.TEXT,
+      // MEDIUMTEXT (~16 MB); plain TEXT caps at 64 KB and overflows on large dashboards.
+      type: DataTypes.TEXT("medium"),
       allowNull: true,
     },
   },
@@ -190,6 +191,7 @@ export const bootstrapDb = async (): Promise<void> => {
   // migration adds the column (+ index + FK) first; on a fresh DB it no-ops
   // and View.sync() creates the table complete.
   await migrateViewTenant();
+  await migrateViewWidgets();
   await View.sync();
   await MessageSchema.sync();
   await seedDevTenant();
@@ -282,6 +284,40 @@ const migrateViewTenant = async (): Promise<void> => {
         "nullable. These rows are invisible to all tenants.",
     );
   }
+};
+
+/**
+ * One-time additive migration: widen `Views.widgets` from TEXT to MEDIUMTEXT.
+ *
+ * `View.sync()` (no `alter`) never changes an existing column type, so a
+ * pre-existing `Views` table keeps the 64 KB TEXT column and rejects large
+ * dashboards with `ER_DATA_TOO_LONG` -> 500. This ALTERs the column in place.
+ *
+ * Idempotent: a no-op once the column is already MEDIUMTEXT/LONGTEXT, and a
+ * no-op on fresh databases (View.sync() will have created it as MEDIUMTEXT).
+ */
+const migrateViewWidgets = async (): Promise<void> => {
+  const qi = sequelize.getQueryInterface();
+  let table: Record<string, { type?: string }>;
+  try {
+    table = (await qi.describeTable("Views")) as Record<
+      string,
+      { type?: string }
+    >;
+  } catch {
+    // Table doesn't exist yet — View.sync() creates it as MEDIUMTEXT.
+    return;
+  }
+  const current = String(table.widgets?.type ?? "").toUpperCase();
+  if (!("widgets" in table) || current.includes("MEDIUMTEXT") || current.includes("LONGTEXT")) {
+    return; // already wide enough (or column absent on a fresh table)
+  }
+
+  console.log(`[migrate] widening Views.widgets (${current || "TEXT"} -> MEDIUMTEXT)`);
+  await qi.changeColumn("Views", "widgets", {
+    type: DataTypes.TEXT("medium"),
+    allowNull: true,
+  });
 };
 
 /**

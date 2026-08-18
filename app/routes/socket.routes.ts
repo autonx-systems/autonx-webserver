@@ -115,8 +115,9 @@ export const registerSocketRoutes = (
 	}
 
 	// The webserver uses the privileged internal plaintext listener (1883).
-	// External devices must use 8883 (TLS + mutual auth); the broker
-	// enforces tenant ACLs on that listener.
+	// Field devices reach the DTLS/UDP gateway instead of the broker; the
+	// gateway is the tenant-isolation boundary and bridges device traffic
+	// onto this same internal broker.
 	const client = mqtt.connect(MQTT_BROKER);
 
 	client.on("connect", () => {
