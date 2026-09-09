@@ -7,6 +7,9 @@ export const registerViewRoutes = (app: express.Express) => {
 	// Create a new View
 	router.post("/", viewController.create);
 
+	// Generate a view draft from a natural-language prompt (not persisted)
+	router.post("/generate", viewController.generate);
+
 	// Retrieve all Views
 	router.get("/", viewController.findAll);
 

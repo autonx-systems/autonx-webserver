@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { db } from "../models";
+import { generateViewFromPrompt } from "../services/view-agent.service";
 
 const View = db.models.View;
 const Op = db.Sequelize.Op;
@@ -139,6 +140,30 @@ const deleteAllViews = (req: Request, res: Response) => {
 		});
 };
 
+// Generate a view draft from a natural-language prompt. Does not persist;
+// the client previews the result and creates the view via POST /views.
+const generateView = async (req: Request, res: Response) => {
+	const prompt = req.body?.prompt;
+	if (typeof prompt !== "string" || prompt.trim().length === 0) {
+		res.status(400).send({ message: "A non-empty 'prompt' is required." });
+		return;
+	}
+	if (prompt.length > 2000) {
+		res.status(400).send({ message: "Prompt is too long (max 2000 chars)." });
+		return;
+	}
+
+	try {
+		const view = await generateViewFromPrompt(prompt.trim());
+		res.send(view);
+	} catch (err) {
+		const message =
+			err instanceof Error ? err.message : "Failed to generate view.";
+		console.error("[generateView]", message);
+		res.status(502).send({ message });
+	}
+};
+
 export const viewController = {
 	create: createView,
 	findAll: findAllViews,
@@ -146,4 +171,5 @@ export const viewController = {
 	update: updateView,
 	delete: deleteView,
 	deleteAll: deleteAllViews,
+	generate: generateView,
 };
