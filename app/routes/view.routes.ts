@@ -10,6 +10,9 @@ export const registerViewRoutes = (app: express.Express) => {
 	// Generate a view draft from a natural-language prompt (not persisted)
 	router.post("/generate", viewController.generate);
 
+	// Edit an existing view's widgets from a natural-language prompt (not persisted)
+	router.post("/generate-edit", viewController.edit);
+
 	// Retrieve all Views
 	router.get("/", viewController.findAll);
 

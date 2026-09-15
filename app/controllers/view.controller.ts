@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { db } from "../models";
-import { generateViewFromPrompt } from "../services/view-agent.service";
+import { generateViewFromPrompt, editViewFromPrompt } from "../services/view-agent.service";
 
 const View = db.models.View;
 const Op = db.Sequelize.Op;
@@ -164,6 +164,43 @@ const generateView = async (req: Request, res: Response) => {
 	}
 };
 
+// Edit an existing view from a natural-language instruction. Stateless: takes
+// the current widgets, returns the modified widget list plus a change summary.
+// The client reconciles the result and persists via PUT /views/:id.
+const editView = async (req: Request, res: Response) => {
+	const prompt = req.body?.prompt;
+	const widgets = req.body?.widgets;
+
+	if (typeof prompt !== "string" || prompt.trim().length === 0) {
+		res.status(400).send({ message: "A non-empty 'prompt' is required." });
+		return;
+	}
+	if (prompt.length > 2000) {
+		res.status(400).send({ message: "Prompt is too long (max 2000 chars)." });
+		return;
+	}
+	if (!Array.isArray(widgets)) {
+		res.status(400).send({ message: "'widgets' must be an array." });
+		return;
+	}
+
+	const rawRows = req.body?.viewportRows;
+	const viewportRows =
+		typeof rawRows === "number" && Number.isFinite(rawRows) && rawRows > 0
+			? Math.round(rawRows)
+			: undefined;
+
+	try {
+		const result = await editViewFromPrompt(prompt.trim(), widgets, viewportRows);
+		res.send(result);
+	} catch (err) {
+		const message =
+			err instanceof Error ? err.message : "Failed to edit view.";
+		console.error("[editView]", message);
+		res.status(502).send({ message });
+	}
+};
+
 export const viewController = {
 	create: createView,
 	findAll: findAllViews,
@@ -172,4 +209,5 @@ export const viewController = {
 	delete: deleteView,
 	deleteAll: deleteAllViews,
 	generate: generateView,
+	edit: editView,
 };
