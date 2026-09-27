@@ -6,6 +6,34 @@ import { WIDGET_CATALOG, WIDGET_TYPE_IDS } from "../config/widget-catalog";
 
 const GRID_COLUMNS = 12;
 
+// Live data snapshot the frontend sends with a generate request
+// (autonx-app/src/features/view-agent/utils/build-agent-context.ts).
+export type AgentContext = {
+	devices: Array<{
+		id: string;
+		topics: Array<{ topic: string; protocol?: string; schema?: string }>;
+	}>;
+	schemas: Array<{
+		name: string;
+		protocol: "ros2" | "mavlink";
+		fields: string[];
+	}>;
+	widgetPorts: Record<string, string[]>;
+};
+
+// One data source wired to a widget input port. Mirrors the frontend
+// DataBinding (autonx-app/src/features/widget-editor/compile-bindings-to-graph.ts),
+// which expands it into a variable -> path -> widget node chain.
+const dataBindingSchema = z.object({
+	device: z.string().describe("Device id from the live sources."),
+	topic: z.string().describe("Topic name from that device."),
+	protocol: z.enum(["ros2", "mavlink"]),
+	schema: z.string().describe("Message schema name for the topic."),
+	path: z.string().describe("Dotted field path within the message."),
+});
+
+export type DataBinding = z.infer<typeof dataBindingSchema>;
+
 // Mirrors the frontend WidgetInstance shape (autonx-app/src/shared/types/widget.ts).
 // The agent only fills the fields it can reason about; runtime defaults cover the rest.
 const generatedWidgetSchema = z.object({
@@ -21,6 +49,13 @@ const generatedWidgetSchema = z.object({
 			h: z.number().int().min(1),
 		})
 		.describe("Position/size on a 12-column grid."),
+	bindings: z
+		.record(z.string(), dataBindingSchema)
+		.nullable()
+		.optional()
+		.describe(
+			"Map of widget input-port name -> live data source. Only bind ports that fit the request; omit if no live source applies.",
+		),
 });
 
 const generatedViewSchema = z.object({
@@ -68,7 +103,7 @@ export type CurrentWidget = {
 	fields?: Record<string, string | number | boolean> | null;
 };
 
-const buildSystemPrompt = (): string => {
+const buildSystemPrompt = (context?: AgentContext): string => {
 	const catalog = WIDGET_CATALOG.map(
 		(w) =>
 			`- ${w.type} (${w.category}): ${w.description} default size ${w.defaultSize.w}x${w.defaultSize.h}`,
@@ -86,8 +121,60 @@ const buildSystemPrompt = (): string => {
 		"- Pick a sensible number of widgets (typically 3-8) that answer the request.",
 		"- Give every widget a short, specific title.",
 		"",
+		buildContextSection(context),
+		"",
 		"Widget catalog:",
 		catalog,
+	].join("\n");
+};
+
+// Live telemetry catalogue + bindable ports the agent may wire widgets to.
+const buildContextSection = (context?: AgentContext): string => {
+	if (!context || context.devices.length === 0) {
+		return [
+			"Live data sources: none are currently connected.",
+			"Do not add any `bindings`; emit widgets with layout only.",
+		].join("\n");
+	}
+
+	const fieldsBySchema = new Map(
+		context.schemas.map((s) => [s.name, s.fields] as const),
+	);
+
+	const devices = context.devices
+		.map((device) => {
+			const topics = device.topics
+				.map((topic) => {
+					const fields = topic.schema
+						? fieldsBySchema.get(topic.schema)
+						: undefined;
+					const fieldList = fields?.length
+						? ` — fields: ${fields.join(", ")}`
+						: "";
+					return `    - topic "${topic.topic}" (protocol: ${topic.protocol ?? "unknown"}, schema: ${topic.schema ?? "unknown"})${fieldList}`;
+				})
+				.join("\n");
+			return `  device "${device.id}":\n${topics}`;
+		})
+		.join("\n");
+
+	const ports = Object.entries(context.widgetPorts)
+		.map(([type, keys]) => `  - ${type}: ${keys.join(", ")}`)
+		.join("\n");
+
+	return [
+		"Live data sources — bind widgets to these. Never invent a device, topic, schema, or field:",
+		devices,
+		"",
+		"Bindable input ports per widget type:",
+		ports,
+		"",
+		"Data-binding rules:",
+		"- For each widget, add a `bindings` object mapping an input port (from the list above) to a data source.",
+		"- Each binding is { device, topic, protocol, schema, path }.",
+		"- `device` and `topic` MUST come from the live sources above; `path` MUST be one of that topic's fields.",
+		"- Copy `protocol` and `schema` verbatim from the matching topic.",
+		"- Only bind ports that fit the request; omit `bindings` entirely when no live source applies.",
 	].join("\n");
 };
 
@@ -153,17 +240,58 @@ const getModel = () => {
 
 export const generateViewFromPrompt = async (
 	prompt: string,
+	context?: AgentContext,
 ): Promise<GeneratedView> => {
 	const { object } = await generateObject({
 		model: getModel(),
 		schema: generatedViewSchema,
-		system: buildSystemPrompt(),
+		system: buildSystemPrompt(context),
 		prompt,
 	});
 
 	return {
 		...object,
-		widgets: normalizeLayout(object.widgets),
+		widgets: normalizeLayout(object.widgets).map((widget) =>
+			groundWidgetBindings(widget, context),
+		),
+	};
+};
+
+// Drop any binding the model hallucinated: keep only ports valid for the widget
+// type and sources (device + topic) that exist in the live catalogue. protocol
+// and schema are re-derived from the matched topic so they can't drift.
+const groundWidgetBindings = <T extends GeneratedWidget>(
+	widget: T,
+	context?: AgentContext,
+): T => {
+	if (!widget.bindings) return widget;
+	if (!context) return { ...widget, bindings: undefined };
+
+	const deviceIndex = new Map(context.devices.map((d) => [d.id, d] as const));
+	const validPorts = context.widgetPorts?.[widget.type];
+
+	const grounded: Record<string, DataBinding> = {};
+	for (const [port, binding] of Object.entries(widget.bindings)) {
+		if (validPorts && !validPorts.includes(port)) continue;
+		const device = deviceIndex.get(binding.device);
+		if (!device) continue;
+		const topic = device.topics.find((t) => t.topic === binding.topic);
+		if (!topic) continue;
+		if (!binding.path) continue;
+
+		grounded[port] = {
+			device: binding.device,
+			topic: binding.topic,
+			protocol:
+				(topic.protocol as DataBinding["protocol"]) ?? binding.protocol,
+			schema: topic.schema ?? binding.schema,
+			path: binding.path,
+		};
+	}
+
+	return {
+		...widget,
+		bindings: Object.keys(grounded).length > 0 ? grounded : undefined,
 	};
 };
 
@@ -244,3 +372,6 @@ export const editViewFromPrompt = async (
 		widgets: clampLayout(object.widgets),
 	};
 };
+
+// Exposed for unit tests.
+export const __testing = { groundWidgetBindings, buildSystemPrompt };

@@ -167,7 +167,7 @@ const generateView = async (req: Request, res: Response) => {
 	}
 
 	try {
-		const view = await generateViewFromPrompt(prompt.trim());
+		const view = await generateViewFromPrompt(prompt.trim(), req.body?.context);
 		res.send(view);
 	} catch (err) {
 		const message =
